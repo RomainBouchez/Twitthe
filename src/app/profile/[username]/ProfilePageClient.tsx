@@ -1,7 +1,7 @@
 "use client";
 
 import { getProfileByUsername, getUserPosts, updateProfile } from "@/actions/profile.action";
-import { toggleFollow } from "@/actions/user.action";
+import { toggleFollow, updateUserImage } from "@/actions/user.action";
 import PostCard from "@/components/PostCard";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,12 @@ import {
   HeartIcon,
   LinkIcon,
   MapPinIcon,
+  PencilIcon,
 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import UserListsModal from "@/components/UserListModal";
+import ImageUpload from "@/components/ImageUpload";
 
 type User = Awaited<ReturnType<typeof getProfileByUsername>>;
 type Posts = Awaited<ReturnType<typeof getUserPosts>>;
@@ -51,6 +54,10 @@ function ProfilePageClient({
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [isUpdatingFollow, setIsUpdatingFollow] = useState(false);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [showUserListsModal, setShowUserListsModal] = useState(false);
+  const [userListsModalTab, setUserListsModalTab] = useState<"followers" | "following">("followers");
+  const [profileImage, setProfileImage] = useState(user.image || "");
 
   const [editForm, setEditForm] = useState({
     name: user.name || "",
@@ -60,15 +67,34 @@ function ProfilePageClient({
   });
 
   const handleEditSubmit = async () => {
-    const formData = new FormData();
-    Object.entries(editForm).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
+    setIsUpdatingProfile(true);
+    try {
+      // First update the text fields
+      const formData = new FormData();
+      Object.entries(editForm).forEach(([key, value]) => {
+        formData.append(key, value);
+      });
 
-    const result = await updateProfile(formData);
-    if (result.success) {
-      setShowEditDialog(false);
-      toast.success("Profile updated successfully");
+      const result = await updateProfile(formData);
+      
+      // Then update the profile image if it was changed
+      if (profileImage !== user.image) {
+        const imageResult = await updateUserImage(profileImage);
+        if (!imageResult.success) {
+          throw new Error(imageResult.error || "Failed to update profile image");
+        }
+      }
+      
+      if (result.success) {
+        setShowEditDialog(false);
+        toast.success("Profile updated successfully");
+      } else {
+        throw new Error(result.error || "Failed to update profile");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update profile");
+    } finally {
+      setIsUpdatingProfile(false);
     }
   };
 
@@ -92,6 +118,11 @@ function ProfilePageClient({
 
   const formattedDate = format(new Date(user.createdAt), "MMMM yyyy");
 
+  const openUserListsModal = (tab: "followers" | "following") => {
+    setUserListsModalTab(tab);
+    setShowUserListsModal(true);
+  };
+
   return (
     <div className="max-w-3xl mx-auto">
       <div className="grid grid-cols-1 gap-6">
@@ -99,9 +130,20 @@ function ProfilePageClient({
           <Card className="bg-card">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
-                <Avatar className="w-24 h-24">
-                  <AvatarImage src={user.image ?? "/avatar.png"} />
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="w-24 h-24">
+                    <AvatarImage src={user.image ?? "/avatar.png"} />
+                  </Avatar>
+                  {isOwnProfile && (
+                    <Button 
+                      size="icon" 
+                      className="absolute bottom-0 right-0 rounded-full bg-primary" 
+                      onClick={() => setShowEditDialog(true)}
+                    >
+                      <PencilIcon className="size-4" />
+                    </Button>
+                  )}
+                </div>
                 <h1 className="mt-4 text-2xl font-bold">{user.name ?? user.username}</h1>
                 <p className="text-muted-foreground">@{user.username}</p>
                 <p className="mt-2 text-sm">{user.bio}</p>
@@ -109,12 +151,18 @@ function ProfilePageClient({
                 {/* PROFILE STATS */}
                 <div className="w-full mt-6">
                   <div className="flex justify-between mb-4">
-                    <div>
+                    <div 
+                      className="cursor-pointer hover:text-primary transition-colors" 
+                      onClick={() => openUserListsModal("following")}
+                    >
                       <div className="font-semibold">{user._count.following.toLocaleString()}</div>
                       <div className="text-sm text-muted-foreground">Following</div>
                     </div>
                     <Separator orientation="vertical" />
-                    <div>
+                    <div 
+                      className="cursor-pointer hover:text-primary transition-colors" 
+                      onClick={() => openUserListsModal("followers")}
+                    >
                       <div className="font-semibold">{user._count.followers.toLocaleString()}</div>
                       <div className="text-sm text-muted-foreground">Followers</div>
                     </div>
@@ -221,55 +269,86 @@ function ProfilePageClient({
           </TabsContent>
         </Tabs>
 
+        {/* USER LISTS MODAL */}
+        <UserListsModal
+          userId={user.id}
+          username={user.username}
+          initialTab={userListsModalTab}
+          followersCount={user._count.followers}
+          followingCount={user._count.following}
+          open={showUserListsModal}
+          onOpenChange={setShowUserListsModal}
+        />
+
+        {/* EDIT PROFILE DIALOG */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Edit Profile</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Name</Label>
-                <Input
-                  name="name"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="Your name"
-                />
+            <div className="space-y-6 py-4">
+              {/* Profile Image Upload */}
+              <div className="flex flex-col items-center">
+                <Label className="mb-2">Profile Picture</Label>
+                <div className="w-full max-w-[240px]">
+                  <ImageUpload
+                    endpoint="postImage" 
+                    value={profileImage}
+                    onChange={(url) => setProfileImage(url)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Bio</Label>
-                <Textarea
-                  name="bio"
-                  value={editForm.bio}
-                  onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                  className="min-h-[100px]"
-                  placeholder="Tell us about yourself"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Location</Label>
-                <Input
-                  name="location"
-                  value={editForm.location}
-                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                  placeholder="Where are you based?"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Website</Label>
-                <Input
-                  name="website"
-                  value={editForm.website}
-                  onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
-                  placeholder="Your personal website"
-                />
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    name="name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Your name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bio</Label>
+                  <Textarea
+                    name="bio"
+                    value={editForm.bio}
+                    onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
+                    className="min-h-[100px]"
+                    placeholder="Tell us about yourself"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Location</Label>
+                  <Input
+                    name="location"
+                    value={editForm.location}
+                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                    placeholder="Where are you based?"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Website</Label>
+                  <Input
+                    name="website"
+                    value={editForm.website}
+                    onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                    placeholder="Your personal website"
+                  />
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3">
               <DialogClose asChild>
                 <Button variant="outline">Cancel</Button>
               </DialogClose>
-              <Button onClick={handleEditSubmit}>Save Changes</Button>
+              <Button 
+                onClick={handleEditSubmit} 
+                disabled={isUpdatingProfile}
+              >
+                {isUpdatingProfile ? "Saving..." : "Save Changes"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>

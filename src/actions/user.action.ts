@@ -189,3 +189,22 @@ export async function getUserFollowing() {
     return [];
   }
 }
+
+export async function updateUserImage(imageUrl: string) {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) return { success: false, error: "Unauthorized" };
+    
+    // Update the user's image in the database
+    const updatedUser = await prisma.user.update({
+      where: { clerkId },
+      data: { image: imageUrl },
+    });
+
+    revalidatePath("/profile");
+    return { success: true, user: updatedUser };
+  } catch (error) {
+    console.error("Error updating profile image:", error);
+    return { success: false, error: "Failed to update profile image" };
+  }
+}

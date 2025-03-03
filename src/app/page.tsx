@@ -1,9 +1,10 @@
 import { getPosts } from "@/actions/post.action";
 import { getDbUserId } from "@/actions/user.action";
-import CreatePost from "@/components/CreatePost";
 import PostCard from "@/components/PostCard";
 import WhoToFollow from "@/components/WhoToFollow";
 import { currentUser } from "@clerk/nextjs/server";
+import StoryCarousel from "@/components/StoryCarousel";
+import FloatingPostButton from "@/components/FloatingPostButton";
 
 export default async function Home() {
   const user = await currentUser();
@@ -11,20 +12,27 @@ export default async function Home() {
   const dbUserId = await getDbUserId();
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-      <div className="lg:col-span-6">
-        {user ? <CreatePost /> : null}
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
+        <div className="lg:col-span-6">
+          {/* Story Carousel */}
+          <StoryCarousel />
 
-        <div className="space-y-6">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} dbUserId={dbUserId} />
-          ))}
+          {/* Posts Feed */}
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} dbUserId={dbUserId} />
+            ))}
+          </div>
+        </div>
+
+        <div className="hidden lg:block lg:col-span-4 sticky top-20">
+          <WhoToFollow />
         </div>
       </div>
 
-      <div className="hidden lg:block lg:col-span-4 sticky top-20">
-        <WhoToFollow />
-      </div>
-    </div>
+      {/* Floating Post Button */}
+      {user && <FloatingPostButton />}
+    </>
   );
 }
