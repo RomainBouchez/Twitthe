@@ -36,6 +36,9 @@ model User {
 
   notifications Notification[] @relation("userNotifications") // notifications received by a user
   notificationsCreated Notification[] @relation("notificationCreator") // notifications triggered by a user
+
+  mentionsReceived Mention[] @relation("mentionedUser")
+  mentionsCreated Mention[] @relation("mentioningUser")
 }
 
 
@@ -52,6 +55,8 @@ model Post{
   comments Comment[]
   likes Like[]
   notifications Notification[]
+
+  Mention Mention[]
 }
 
 
@@ -68,6 +73,7 @@ model Comment{
   notifications Notification[]
 
   @@index([authorId,postId]) // composite index for faster queries
+  Mention Mention[]
 }
 
 model Like {
@@ -116,8 +122,28 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+model Mention {
+  id         String    @id @default(cuid())
+  userId     String    // User being mentioned
+  mentionerId String   // User who created the mention
+  postId     String?   // Optional: if mention is in a post
+  commentId  String?   // Optional: if mention is in a comment
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  user       User      @relation("mentionedUser", fields: [userId], references: [id], onDelete: Cascade)
+  mentioner  User      @relation("mentioningUser", fields: [mentionerId], references: [id], onDelete: Cascade)
+  post       Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment    Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([postId, userId])
+  @@index([commentId, userId])
+}
+
 enum NotificationType {
   LIKE     
   COMMENT 
-  FOLLOW   
+  FOLLOW
+  MENTION
 }

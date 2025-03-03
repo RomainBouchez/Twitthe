@@ -6,7 +6,7 @@ import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
-import { HeartIcon, MessageCircleIcon, UserPlusIcon } from "lucide-react";
+import { AtSignIcon, HeartIcon, MessageCircleIcon, UserPlusIcon } from "lucide-react";
 
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -22,6 +22,8 @@ const getNotificationIcon = (type: string) => {
       return <MessageCircleIcon className="size-4 text-blue-500" />;
     case "FOLLOW":
       return <UserPlusIcon className="size-4 text-green-500" />;
+    case "MENTION":
+      return <AtSignIcon className="size-4 text-purple-500" />; 
     default:
       return null;
   }
@@ -84,12 +86,18 @@ function NotificationsPage() {
                       <span>
                         <span className="font-medium">
                           {notification.creator.name ?? notification.creator.username}
-                        </span>{" "}
+                          </span>{" "}
                         {notification.type === "FOLLOW"
                           ? "started following you"
                           : notification.type === "LIKE"
                           ? "liked your post"
-                          : "commented on your post"}
+                          : notification.type === "COMMENT"
+                          ? "commented on your post"
+                          : notification.type === "MENTION"
+                          ? (notification.commentId 
+                            ? "mentioned you in a comment" 
+                            : "mentioned you in a post")
+                          : ""}
                       </span>
                     </div>
 

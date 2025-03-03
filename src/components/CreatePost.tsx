@@ -10,6 +10,7 @@ import { Button } from "./ui/button";
 import { createPost } from "@/actions/post.action";
 import toast from "react-hot-toast";
 import ImageUpload from "./ImageUpload";
+import MentionInput from "./MentionInput";
 
 function CreatePost() {
   const { user } = useUser();
@@ -48,12 +49,11 @@ function CreatePost() {
             <Avatar className="w-10 h-10">
               <AvatarImage src={user?.imageUrl || "/avatar.png"} />
             </Avatar>
-            <Textarea
-              placeholder="What's on your mind?"
-              className="min-h-[100px] resize-none border-none focus-visible:ring-0 p-0 text-base"
+            <MentionInput
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              disabled={isPosting}
+              onChange={setContent}
+              className="min-h-[100px] resize-none"
+              placeholder="What's happening?"
             />
           </div>
 

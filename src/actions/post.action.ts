@@ -3,12 +3,14 @@
 import prisma from "@/lib/prisma";
 import { getDbUserId } from "./user.action";
 import { revalidatePath } from "next/cache";
+import { NotificationType } from "@prisma/client"; 
+import { processMentions } from "@/actions/mention.action";
 
 export async function createPost(content: string, image: string) {
   try {
     const userId = await getDbUserId();
 
-    if (!userId) return;
+    if (!userId) return { success: false, error: "Not authenticated" };
 
     const post = await prisma.post.create({
       data: {
@@ -18,7 +20,7 @@ export async function createPost(content: string, image: string) {
       },
     });
 
-    revalidatePath("/"); // purge the cache for the home page
+    revalidatePath("/");
     return { success: true, post };
   } catch (error) {
     console.error("Failed to create post:", error);
@@ -28,6 +30,9 @@ export async function createPost(content: string, image: string) {
 
 export async function getPosts() {
   try {
+    // Add some basic error handling and logging
+    console.log("Attempting to fetch posts...");
+    
     const posts = await prisma.post.findMany({
       orderBy: {
         createdAt: "desc",
@@ -70,19 +75,20 @@ export async function getPosts() {
       },
     });
 
+    console.log(`Successfully fetched ${posts.length} posts`);
     return posts;
   } catch (error) {
-    console.log("Error in getPosts", error);
-    throw new Error("Failed to fetch posts");
+    console.error("Error in getPosts:", error);
+    // Return an empty array instead of throwing to prevent server crashes
+    return [];
   }
 }
 
 export async function toggleLike(postId: string) {
   try {
     const userId = await getDbUserId();
-    if (!userId) return;
+    if (!userId) return { success: false, error: "Not authenticated" };
 
-    // check if like exists
     const existingLike = await prisma.like.findUnique({
       where: {
         userId_postId: {
@@ -97,10 +103,9 @@ export async function toggleLike(postId: string) {
       select: { authorId: true },
     });
 
-    if (!post) throw new Error("Post not found");
+    if (!post) return { success: false, error: "Post not found" };
 
     if (existingLike) {
-      // unlike
       await prisma.like.delete({
         where: {
           userId_postId: {
@@ -110,7 +115,6 @@ export async function toggleLike(postId: string) {
         },
       });
     } else {
-      // like and create notification (only if liking someone else's post)
       await prisma.$transaction([
         prisma.like.create({
           data: {
@@ -122,9 +126,9 @@ export async function toggleLike(postId: string) {
           ? [
               prisma.notification.create({
                 data: {
-                  type: "LIKE",
-                  userId: post.authorId, // recipient (post author)
-                  creatorId: userId, // person who liked
+                  type: NotificationType.LIKE,
+                  userId: post.authorId,
+                  creatorId: userId,
                   postId,
                 },
               }),
@@ -145,19 +149,17 @@ export async function createComment(postId: string, content: string) {
   try {
     const userId = await getDbUserId();
 
-    if (!userId) return;
-    if (!content) throw new Error("Content is required");
+    if (!userId) return { success: false, error: "Not authenticated" };
+    if (!content) return { success: false, error: "Content is required" };
 
     const post = await prisma.post.findUnique({
       where: { id: postId },
       select: { authorId: true },
     });
 
-    if (!post) throw new Error("Post not found");
+    if (!post) return { success: false, error: "Post not found" };
 
-    // Create comment and notification in a transaction
     const [comment] = await prisma.$transaction(async (tx) => {
-      // Create comment first
       const newComment = await tx.comment.create({
         data: {
           content,
@@ -166,11 +168,10 @@ export async function createComment(postId: string, content: string) {
         },
       });
 
-      // Create notification if commenting on someone else's post
       if (post.authorId !== userId) {
         await tx.notification.create({
           data: {
-            type: "COMMENT",
+            type: NotificationType.COMMENT,
             userId: post.authorId,
             creatorId: userId,
             postId,
@@ -193,23 +194,73 @@ export async function createComment(postId: string, content: string) {
 export async function deletePost(postId: string) {
   try {
     const userId = await getDbUserId();
+    if (!userId) return { success: false, error: "Not authenticated" };
 
     const post = await prisma.post.findUnique({
       where: { id: postId },
       select: { authorId: true },
     });
 
-    if (!post) throw new Error("Post not found");
-    if (post.authorId !== userId) throw new Error("Unauthorized - no delete permission");
+    if (!post) return { success: false, error: "Post not found" };
+    if (post.authorId !== userId) return { success: false, error: "Unauthorized" };
 
     await prisma.post.delete({
       where: { id: postId },
     });
 
-    revalidatePath("/"); // purge the cache
+    revalidatePath("/");
     return { success: true };
   } catch (error) {
     console.error("Failed to delete post:", error);
     return { success: false, error: "Failed to delete post" };
+  }
+}
+
+export async function getSinglePost(id: string) {
+  try {
+    const post = await prisma.post.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            username: true,
+          },
+        },
+        comments: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                image: true,
+                name: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+        likes: {
+          select: {
+            userId: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+          },
+        },
+      },
+    });
+
+    return post;
+  } catch (error) {
+    console.error("Error fetching post:", error);
+    return null;
   }
 }
