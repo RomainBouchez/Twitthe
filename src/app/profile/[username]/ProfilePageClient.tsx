@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import UserListsModal from "@/components/UserListModal";
+import UserListsModal from "@/components/UserListsModal";
 import ImageUpload from "@/components/ImageUpload";
 
 type User = Awaited<ReturnType<typeof getProfileByUsername>>;
@@ -76,22 +76,32 @@ function ProfilePageClient({
       });
 
       const result = await updateProfile(formData);
+      if (!result.success) {
+        throw new Error(result.error || "Failed to update profile information");
+      }
       
       // Then update the profile image if it was changed
       if (profileImage !== user.image) {
+        console.log("Updating profile image to:", profileImage);
         const imageResult = await updateUserImage(profileImage);
+        
         if (!imageResult.success) {
           throw new Error(imageResult.error || "Failed to update profile image");
         }
+        
+        if (imageResult.warning) {
+          // Show warning but don't treat as error
+          toast.error(imageResult.warning);
+        }
       }
       
-      if (result.success) {
-        setShowEditDialog(false);
-        toast.success("Profile updated successfully");
-      } else {
-        throw new Error(result.error || "Failed to update profile");
-      }
+      setShowEditDialog(false);
+      toast.success("Profile updated successfully");
+      // Force a refresh to show the updated profile
+      window.location.reload();
+      
     } catch (error) {
+      console.error("Profile update error:", error);
       toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setIsUpdatingProfile(false);
@@ -282,7 +292,7 @@ function ProfilePageClient({
 
         {/* EDIT PROFILE DIALOG */}
         <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Profile</DialogTitle>
             </DialogHeader>
