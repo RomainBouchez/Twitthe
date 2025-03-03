@@ -96,6 +96,7 @@ export default function UserListsModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
+        {/* IMPORTANT: No need for a manual close button here, the Dialog component adds one automatically */}
         <DialogHeader>
           <DialogTitle className="text-center">{username}'s Connections</DialogTitle>
         </DialogHeader>
