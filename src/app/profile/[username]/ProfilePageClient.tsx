@@ -89,10 +89,12 @@ function ProfilePageClient({
           throw new Error(imageResult.error || "Failed to update profile image");
         }
         
-        if (imageResult.warning) {
-          // Show warning but don't treat as error
-          toast.error(imageResult.warning);
-        }
+        // @ts-ignore - warning property might exist in the response
+      if (imageResult.warning) {
+        // Show warning but don't treat as error
+        // @ts-ignore - warning property might exist in the response
+        toast.error(imageResult.warning);
+      }
       }
       
       setShowEditDialog(false);

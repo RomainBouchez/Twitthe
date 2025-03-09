@@ -40,7 +40,7 @@ export default function FloatingPostButton() {
           await processMentions({
             content,
             postId: result.post.id,
-            authorId: result.post.authorId
+            mentionerId: result.post.authorId
           });
         }
         

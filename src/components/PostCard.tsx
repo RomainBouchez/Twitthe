@@ -76,7 +76,7 @@ function PostCard({ post, dbUserId }: { post: Post; dbUserId: string | null }) {
             content: newComment,
             postId: post.id,
             commentId: result.comment.id,
-            authorId: result.comment.authorId
+            mentionerId: result.comment.authorId
           });
         }
         

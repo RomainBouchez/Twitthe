@@ -21,7 +21,7 @@ export async function processMentions({
     
     // Extract all @username mentions from the content
     const mentionRegex = /@(\w+)/g;
-    const mentionMatches = [...content.matchAll(mentionRegex)];
+    const mentionMatches = Array.from(content.matchAll(mentionRegex));
     const usernames = mentionMatches.map(match => match[1]);
     
     if (usernames.length === 0) return { success: true, message: "No mentions found" };
