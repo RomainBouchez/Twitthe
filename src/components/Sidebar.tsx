@@ -7,7 +7,7 @@ import { getUserByClerkId } from "@/actions/user.action";
 import Link from "next/link";
 import { Avatar, AvatarImage } from "./ui/avatar";
 import { Separator } from "./ui/separator";
-import SidebarNav from "./SidebarNav";
+import SidebarNav from "./SidebarNav.tsx";
 import { DollarSign } from "lucide-react";
 import { getMembershipStats } from "@/actions/membership.action";
 
