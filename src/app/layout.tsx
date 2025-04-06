@@ -1,3 +1,4 @@
+// src/app/layout.tsx
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -19,8 +20,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Twitthé",
-  description: "A modern social media application powered by Next.js",
+  title: "ExpenseTracker",
+  description: "A modern expense tracking application powered by Next.js",
 };
 
 export default function RootLayout({
