@@ -1,149 +1,131 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql" // Assurez-vous que c'est postgresql
+  url          = env("DATABASE_URL") // Lit depuis .env.local
+  relationMode = "prisma" // Recommandé pour Neon/Serverless
 }
+
+// --- Modèles de données ---
 
 model User {
-  id String @id @default(cuid())
-  email String @unique
-  username String @unique
-  clerkId String @unique
-  name String?
-  bio String?
-  image String?
-  location String?
-  website String?
-  createdAt DateTime @default(now()) // member since 2020
-  updatedAt DateTime @updatedAt
+  id          String     @id @default(cuid()) // Cuid() est un bon choix pour les ID uniques
+  email       String     @unique
+  username    String? // Le '?' indique que c'est optionnel (nullable)
+  clerkId     String     @unique
+  name        String?
+  image       String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
 
-  // Relations: 
-  posts Post[] // One-to-many
-  comments Comment[] // One-to-many
-  likes Like[] // One-to-many
+  // Relations
+  categories  Category[]
+  expenses    Expense[]
+  budgets     Budget[]
+  memberships Membership[]
 
-  followers Follows[] @relation("following") // users who follow this user
-  following Follows[] @relation("follower") // users this user follows
-
-  notifications Notification[] @relation("userNotifications") // notifications received by a user
-  notificationsCreated Notification[] @relation("notificationCreator") // notifications triggered by a user
-
-  mentionsReceived Mention[] @relation("mentionedUser")
-  mentionsCreated Mention[] @relation("mentioningUser")
+  @@map("users") // Nom de la table dans la base de données
 }
 
-
-model Post{
+model Category {
   id        String    @id @default(cuid())
-  authorId String
-  content String?
-  image String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  name      String
+  icon      String?
+  color     String?   @default("#A7C5EB")
+  isDefault Boolean   @default(false) @map("is_default")
 
-  // Relations
-  author User @relation(fields: [authorId],references: [id], onDelete: Cascade) // cascade delete means delete all posts if author is deleted
-  comments Comment[]
-  likes Like[]
-  notifications Notification[]
+  // Relation avec User (une catégorie peut appartenir à un utilisateur ou être par défaut)
+  userId    String?   @map("user_id")
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade) // onDelete: Cascade si l'utilisateur est supprimé
 
-  Mention Mention[]
+  // Relation avec d'autres modèles
+  expenses    Expense[]
+  budgets     Budget[]
+  memberships Membership[]
+
+  @@map("categories")
 }
 
+model Expense {
+  id            String    @id @default(cuid())
+  amount        Decimal   // Prisma gère Decimal pour les montants précis
+  description   String?
+  expenseDate   DateTime  @db.Date @map("expense_date") // @db.Date pour stocker seulement la date
+  receiptImage  String?   @map("receipt_image")
+  paymentMethod String?   @map("payment_method")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
 
-model Comment{
-  id String @id @default(cuid())
-  content String
-  authorId String
-  postId String
-  createdAt DateTime @default(now())
+  // Relation avec Category (une dépense a une catégorie optionnelle)
+  categoryId    String?   @map("category_id")
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull) // Si la catégorie est supprimée, met categoryId à NULL
 
-  // Relations
-  author User @relation(fields: [authorId],references: [id],onDelete: Cascade)
-  post Post @relation(fields: [postId],references: [id], onDelete: Cascade)
-  notifications Notification[]
+  // Relation avec User (une dépense appartient à un utilisateur)
+  userId        String    @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade) // Si l'utilisateur est supprimé, ses dépenses aussi
 
-  @@index([authorId,postId]) // composite index for faster queries
-  Mention Mention[]
+  @@map("expenses")
 }
 
-model Like {
-  id        String   @id @default(cuid())
-  postId    String                 
-  userId    String                 
-  createdAt DateTime @default(now())
+model Budget {
+  id         String   @id @default(cuid())
+  name       String
+  amount     Decimal
+  period     Period   @default(monthly) // Utilisation de l'Enum Period
+  startDate  DateTime @db.Date @map("start_date")
+  endDate    DateTime? @db.Date @map("end_date") // Date de fin optionnelle
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  // Relation avec Category (un budget peut être lié à une catégorie)
+  categoryId String?   @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  @@index([userId,postId]) // composite index for faster queries
-  @@unique([userId,postId]) // this prevents same user liking post twice
+  // Relation avec User (un budget appartient à un utilisateur)
+  userId     String    @map("user_id")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budgets")
 }
 
-model Follows{
-  followerId String
-  followingId String
-  createdAt DateTime @default(now())
+model Membership {
+  id              String        @id @default(cuid())
+  name            String
+  amount          Decimal
+  billingCycle    BillingCycle  @default(monthly) @map("billing_cycle") // Utilisation de l'Enum BillingCycle
+  startDate       DateTime      @db.Date @map("start_date")
+  nextBillingDate DateTime      @db.Date @map("next_billing_date")
+  description     String?
+  isActive        Boolean       @default(true) @map("is_active")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  // Relations
-  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
-  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  // Relation avec Category (un abonnement peut être lié à une catégorie)
+  categoryId      String?       @map("category_id")
+  category        Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  @@index([followerId,followingId]) // composite index for faster queries
-  @@id([followerId, followingId]) // composite primary key prevents duplicate follows
+  // Relation avec User (un abonnement appartient à un utilisateur)
+  userId          String        @map("user_id")
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
 }
 
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String                  
-  creatorId String                  
-  type      NotificationType        
-  read      Boolean  @default(false)
-  postId    String?                 
-  commentId String?                
-  createdAt DateTime @default(now())
-  
-  // Relations
-  user      User     @relation("userNotifications", fields: [userId], references: [id], onDelete: Cascade)
-  creator   User     @relation("notificationCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+// --- Enums ---
 
-  @@index([userId, createdAt])
+enum Period {
+  monthly
+  quarterly
+  yearly
 }
 
-model Mention {
-  id         String    @id @default(cuid())
-  userId     String    // User being mentioned
-  mentionerId String   // User who created the mention
-  postId     String?   // Optional: if mention is in a post
-  commentId  String?   // Optional: if mention is in a comment
-  createdAt  DateTime  @default(now())
-
-  // Relations
-  user       User      @relation("mentionedUser", fields: [userId], references: [id], onDelete: Cascade)
-  mentioner  User      @relation("mentioningUser", fields: [mentionerId], references: [id], onDelete: Cascade)
-  post       Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment    Comment?  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  @@index([userId, createdAt])
-  @@index([postId, userId])
-  @@index([commentId, userId])
-}
-
-enum NotificationType {
-  LIKE     
-  COMMENT 
-  FOLLOW
-  MENTION
+enum BillingCycle {
+  weekly
+  monthly
+  quarterly
+  yearly
 }
